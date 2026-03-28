@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(streamlit run:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/cryptopatience/macro-creditrisks/main/app1.py\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/cryptopatience/Macro-CreditRisks/main/requirements.txt\")",
+      "Read(//tmp/**)",
+      "Bash(curl -s https://raw.githubusercontent.com/cryptopatience/macro-creditrisks/main/app1.py)",
+      "Bash(gh api:*)"
+    ]
+  }
+}
