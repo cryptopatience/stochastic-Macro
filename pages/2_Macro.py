@@ -14,6 +14,34 @@ if not st.session_state.get("authenticated"):
     st.error("🔒 접근 권한이 없습니다. 메인 페이지에서 로그인하세요.")
     st.stop()
 
+# ── AI 결과 디스크 캐시 헬퍼 ──────────────────────────────────────────────────
+import json as _json, os as _os_cache
+
+_AI_CACHE_DIR = _os_cache.path.join(_os_cache.path.dirname(_os_cache.path.abspath(__file__)), "..", "_ai_cache")
+_os_cache.makedirs(_AI_CACHE_DIR, exist_ok=True)
+
+def _ai_cache_load(key: str):
+    path = _os_cache.path.join(_AI_CACHE_DIR, f"{key}.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return _json.load(f)
+    except Exception:
+        return None
+
+def _ai_cache_save(key: str, data: dict):
+    path = _os_cache.path.join(_AI_CACHE_DIR, f"{key}.json")
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            _json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+# 새로고침 후 복원
+if "macro_ai_result" not in st.session_state:
+    _cached = _ai_cache_load("macro_ai_result")
+    if _cached:
+        st.session_state["macro_ai_result"] = _cached
+
 # 흰색 배경 테마
 st.markdown("""
 <style>
@@ -1158,6 +1186,7 @@ def main():
                         "text": _result,
                         "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
                     }
+                    _ai_cache_save("macro_ai_result", st.session_state["macro_ai_result"])
                 except Exception as _e:
                     st.error(f"AI 분석 중 오류: {str(_e)}")
 
@@ -1243,6 +1272,7 @@ def main():
                             "text": _result,
                             "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
                         }
+                        _ai_cache_save("macro_ai_result", st.session_state["macro_ai_result"])
                         st.rerun()
                     except Exception as _e:
                         st.error(f"분석 중 오류: {str(_e)}")

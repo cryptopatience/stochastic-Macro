@@ -1,1 +1,4 @@
 .streamlit/secrets.toml
+_ai_cache/
+*.daily_report_sent
+.ai_daily_report_sent

@@ -14,6 +14,35 @@ if not st.session_state.get("authenticated"):
     st.error("🔒 접근 권한이 없습니다. 메인 페이지에서 로그인하세요.")
     st.stop()
 
+# ── AI 결과 디스크 캐시 헬퍼 ──────────────────────────────────────────────────
+import json as _json, os as _os_cache
+
+_AI_CACHE_DIR = _os_cache.path.join(_os_cache.path.dirname(_os_cache.path.abspath(__file__)), "..", "_ai_cache")
+_os_cache.makedirs(_AI_CACHE_DIR, exist_ok=True)
+
+def _ai_cache_load(key: str):
+    path = _os_cache.path.join(_AI_CACHE_DIR, f"{key}.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return _json.load(f)
+    except Exception:
+        return None
+
+def _ai_cache_save(key: str, data: dict):
+    path = _os_cache.path.join(_AI_CACHE_DIR, f"{key}.json")
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            _json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+# 새로고침 후 복원
+for _k in ["sso_ai_result", "macro_ai_result", "unified_ai_result"]:
+    if _k not in st.session_state:
+        _c = _ai_cache_load(_k)
+        if _c:
+            st.session_state[_k] = _c
+
 import pandas as pd
 import numpy as np
 import yfinance as yf
@@ -228,6 +257,7 @@ if "sso_ai_result" not in st.session_state:
                 "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "ticker": "Mag7+BTC",
             }
+            _ai_cache_save("sso_ai_result", st.session_state["sso_ai_result"])
         except Exception as e:
             st.error(f"❌ SSO 자동 분석 실패: {e}")
             st.stop()
@@ -275,6 +305,7 @@ if "macro_ai_result" not in st.session_state:
                 "text": macro_text,
                 "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
             }
+            _ai_cache_save("macro_ai_result", st.session_state["macro_ai_result"])
         except Exception as e:
             st.error(f"❌ 매크로 자동 분석 실패: {e}")
             st.stop()
@@ -364,6 +395,7 @@ if "unified_ai_result" not in st.session_state:
                 "text": unified_text,
                 "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
             }
+            _ai_cache_save("unified_ai_result", st.session_state["unified_ai_result"])
         except Exception as e:
             st.error(f"❌ 통합 분석 실패: {e}")
             st.stop()
