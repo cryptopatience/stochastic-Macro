@@ -424,95 +424,83 @@ st.download_button(
 # ─────────────────────────────────────────────────────────────────────────────
 # Discord 일일 자동 발송 (매일 08:00)
 # ─────────────────────────────────────────────────────────────────────────────
-_WH_URL = "https://discord.com/api/webhooks/1487415854839894076/i2HkxX91ZbcWFzOHe9QZjLvNNXPl-j6t1rZs2hnQcvC0gbzk0l0Ohyce2nXU5C3IYD0A"
+_WH_URL        = "https://discord.com/api/webhooks/1487415854839894076/i2HkxX91ZbcWFzOHe9QZjLvNNXPl-j6t1rZs2hnQcvC0gbzk0l0Ohyce2nXU5C3IYD0A"
 _REPORT_HOUR   = 8
 _REPORT_MINUTE = 0
-_STATE_FILE = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
-                            ".ai_daily_report_sent")
 
 
-def _send_text_as_embeds(title: str, text: str, color: int) -> list[dict]:
-    """긴 텍스트를 Discord embed description 4000자 제한으로 분할."""
-    chunks = []
-    while len(text) > 4000:
-        split_at = text.rfind("\n", 0, 4000)
-        if split_at == -1:
-            split_at = 4000
-        chunks.append(text[:split_at])
-        text = text[split_at:].lstrip("\n")
-    chunks.append(text)
-
-    embeds = []
-    for idx, chunk in enumerate(chunks):
-        embeds.append({
-            "title":       f"{title} {'(계속)' if idx > 0 else ''}".strip(),
-            "color":       color,
-            "description": chunk,
-            "footer":      {"text": f"AI 통합 대시보드 · {datetime.now().strftime('%Y-%m-%d %H:%M')}"},
-        })
-    return embeds
+def _truncate(text: str, limit: int = 3900) -> str:
+    """Discord embed description 한도 내로 자르고 말줄임 표시."""
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "\n\n… (전체 내용은 대시보드에서 확인하세요)"
 
 
-def _post_discord(embeds: list[dict]) -> bool:
+def _post_embeds(embeds: list) -> tuple[bool, str]:
+    """embed 목록을 10개씩 나눠 전송. (성공여부, 오류메시지) 반환."""
     try:
         for i in range(0, len(embeds), 10):
-            r = requests.post(_WH_URL, json={"embeds": embeds[i:i+10]}, timeout=15)
+            r = requests.post(_WH_URL, json={"embeds": embeds[i:i+10]}, timeout=20)
             if r.status_code not in (200, 204):
-                return False
-        return True
-    except Exception:
-        return False
+                return False, f"HTTP {r.status_code}: {r.text[:200]}"
+        return True, ""
+    except Exception as e:
+        return False, str(e)
 
 
-def _check_and_send_ai_daily_report() -> str:
-    """매일 08:00 이후 최초 1회 AI 딥다이브 리포트를 Discord로 전송."""
+def _check_and_send_ai_daily_report() -> tuple[str, str]:
+    """매일 08:00 이후 최초 1회 AI 딥다이브 리포트를 Discord로 전송.
+    반환: (상태코드, 오류메시지)"""
     now       = datetime.now()
     today_str = now.strftime("%Y-%m-%d")
 
-    if _os.path.exists(_STATE_FILE):
-        with open(_STATE_FILE, encoding="utf-8") as f:
-            if f.read().strip() == today_str:
-                return "already_sent"
+    # session_state로 중복 방지 (Streamlit Cloud 호환)
+    if st.session_state.get("ai_report_sent_date") == today_str:
+        return "already_sent", ""
 
     if (now.hour, now.minute) < (_REPORT_HOUR, _REPORT_MINUTE):
-        return "not_yet"
+        return "not_yet", ""
 
     sso_r   = st.session_state.get("sso_ai_result")
     macro_r = st.session_state.get("macro_ai_result")
     uni_r   = st.session_state.get("unified_ai_result")
 
     if not all([sso_r, macro_r, uni_r]):
-        return "not_ready"
+        return "not_ready", ""
 
-    embeds = []
+    today_label = f"{today_str} {_REPORT_HOUR:02d}:{_REPORT_MINUTE:02d}"
 
-    # ① SSO 딥다이브
-    embeds += _send_text_as_embeds(
-        f"📈 [1/3] SSO 딥다이브 분석 — {today_str}",
-        sso_r["text"], 0x3FB950,
-    )
-    # ② 매크로 딥다이브
-    embeds += _send_text_as_embeds(
-        f"🏦 [2/3] 매크로 딥다이브 분석 — {today_str}",
-        macro_r["text"], 0x58A6FF,
-    )
-    # ③ 통합 딥다이브
-    embeds += _send_text_as_embeds(
-        f"🤖 [3/3] AI 통합 딥다이브 분석 — {today_str}",
-        uni_r["text"], 0xE3B341,
-    )
+    embeds = [
+        {
+            "title":       f"📈 [1/3] SSO 딥다이브 분석 — {today_label}",
+            "color":       0x3FB950,
+            "description": _truncate(sso_r["text"]),
+            "footer":      {"text": f"생성: {sso_r['time']}"},
+        },
+        {
+            "title":       f"🏦 [2/3] 매크로 딥다이브 분석 — {today_label}",
+            "color":       0x58A6FF,
+            "description": _truncate(macro_r["text"]),
+            "footer":      {"text": f"생성: {macro_r['time']}"},
+        },
+        {
+            "title":       f"🤖 [3/3] AI 통합 딥다이브 분석 — {today_label}",
+            "color":       0xE3B341,
+            "description": _truncate(uni_r["text"]),
+            "footer":      {"text": f"생성: {uni_r['time']}  |  AI 통합 대시보드"},
+        },
+    ]
 
-    ok = _post_discord(embeds)
+    ok, err = _post_embeds(embeds)
     if ok:
-        with open(_STATE_FILE, "w", encoding="utf-8") as f:
-            f.write(today_str)
-        return "sent"
-    return "error"
+        st.session_state["ai_report_sent_date"] = today_str
+        return "sent", ""
+    return "error", err
 
 
 # ── 상태 표시 ─────────────────────────────────────────────────────────────────
 st.markdown("---")
-_result = _check_and_send_ai_daily_report()
+_result, _err = _check_and_send_ai_daily_report()
 
 if _result == "sent":
     st.success(f"📨 AI 딥다이브 일일 리포트 Discord 전송 완료 (3건) — {_REPORT_HOUR:02d}:{_REPORT_MINUTE:02d}")
@@ -522,5 +510,7 @@ elif _result == "not_yet":
     st.caption(f"⏰ AI 딥다이브 일일 리포트 대기 중 — {_REPORT_HOUR:02d}:{_REPORT_MINUTE:02d} 전송 예정")
 elif _result == "not_ready":
     st.caption("⏳ 분석 결과 생성 후 자동 전송됩니다")
+elif _result == "error":
+    st.error(f"❌ Discord 전송 실패: {_err}")
 else:
     st.error("❌ Discord 전송 실패")
