@@ -472,19 +472,7 @@ def _check_and_send_ai_daily_report() -> tuple[str, str]:
 
     embeds = [
         {
-            "title":       f"📈 [1/3] SSO 딥다이브 분석 — {today_label}",
-            "color":       0x3FB950,
-            "description": _truncate(sso_r["text"]),
-            "footer":      {"text": f"생성: {sso_r['time']}"},
-        },
-        {
-            "title":       f"🏦 [2/3] 매크로 딥다이브 분석 — {today_label}",
-            "color":       0x58A6FF,
-            "description": _truncate(macro_r["text"]),
-            "footer":      {"text": f"생성: {macro_r['time']}"},
-        },
-        {
-            "title":       f"🤖 [3/3] AI 통합 딥다이브 분석 — {today_label}",
+            "title":       f"🤖 AI 통합 딥다이브 분석 — {today_label}",
             "color":       0xE3B341,
             "description": _truncate(uni_r["text"]),
             "footer":      {"text": f"생성: {uni_r['time']}  |  AI 통합 대시보드"},
