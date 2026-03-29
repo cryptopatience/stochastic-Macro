@@ -424,9 +424,12 @@ st.download_button(
 # ─────────────────────────────────────────────────────────────────────────────
 # Discord 일일 자동 발송 (매일 08:00)
 # ─────────────────────────────────────────────────────────────────────────────
-_WH_URL        = "https://discord.com/api/webhooks/1487415854839894076/i2HkxX91ZbcWFzOHe9QZjLvNNXPl-j6t1rZs2hnQcvC0gbzk0l0Ohyce2nXU5C3IYD0A"
-_REPORT_HOUR   = 8
-_REPORT_MINUTE = 0
+_WH_URL          = "https://discord.com/api/webhooks/1487415854839894076/i2HkxX91ZbcWFzOHe9QZjLvNNXPl-j6t1rZs2hnQcvC0gbzk0l0Ohyce2nXU5C3IYD0A"
+_REPORT_HOUR     = 8
+_REPORT_MINUTE   = 0
+_SEND_WINDOW_MIN = 10   # 전송 가능 시간 윈도우 (분) — 08:00 ~ 08:09 만 전송
+_STATE_FILE      = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                 "..", "_ai_cache", ".ai_report_sent")
 
 
 def _truncate(text: str, limit: int = 3900) -> str:
@@ -449,17 +452,34 @@ def _post_embeds(embeds: list) -> tuple[bool, str]:
 
 
 def _check_and_send_ai_daily_report() -> tuple[str, str]:
-    """매일 08:00 이후 최초 1회 AI 딥다이브 리포트를 Discord로 전송.
+    """매일 08:00~08:09 사이 최초 1회 AI 딥다이브 리포트를 Discord로 전송.
     반환: (상태코드, 오류메시지)"""
     now       = datetime.now()
     today_str = now.strftime("%Y-%m-%d")
 
-    # session_state로 중복 방지 (Streamlit Cloud 호환)
+    # ① session_state 중복 방지
     if st.session_state.get("ai_report_sent_date") == today_str:
         return "already_sent", ""
 
-    if (now.hour, now.minute) < (_REPORT_HOUR, _REPORT_MINUTE):
+    # ② 파일 중복 방지 (서버 재시작 후에도 유지)
+    try:
+        if _os.path.exists(_STATE_FILE):
+            with open(_STATE_FILE, encoding="utf-8") as f:
+                if f.read().strip() == today_str:
+                    st.session_state["ai_report_sent_date"] = today_str  # 동기화
+                    return "already_sent", ""
+    except Exception:
+        pass
+
+    # ③ 전송 시간 윈도우 체크: 08:00 ~ 08:09 사이에만 전송
+    now_minutes = now.hour * 60 + now.minute
+    send_start  = _REPORT_HOUR * 60 + _REPORT_MINUTE
+    send_end    = send_start + _SEND_WINDOW_MIN
+
+    if now_minutes < send_start:
         return "not_yet", ""
+    if now_minutes >= send_end:
+        return "window_passed", ""   # 08:10 이후 — 오늘은 전송 안 함
 
     sso_r   = st.session_state.get("sso_ai_result")
     macro_r = st.session_state.get("macro_ai_result")
@@ -482,6 +502,12 @@ def _check_and_send_ai_daily_report() -> tuple[str, str]:
     ok, err = _post_embeds(embeds)
     if ok:
         st.session_state["ai_report_sent_date"] = today_str
+        try:
+            _os.makedirs(_os.path.dirname(_STATE_FILE), exist_ok=True)
+            with open(_STATE_FILE, "w", encoding="utf-8") as f:
+                f.write(today_str)
+        except Exception:
+            pass
         return "sent", ""
     return "error", err
 
@@ -491,14 +517,14 @@ st.markdown("---")
 _result, _err = _check_and_send_ai_daily_report()
 
 if _result == "sent":
-    st.success(f"📨 AI 딥다이브 일일 리포트 Discord 전송 완료 (3건) — {_REPORT_HOUR:02d}:{_REPORT_MINUTE:02d}")
+    st.success(f"📨 AI 딥다이브 일일 리포트 Discord 전송 완료 — {_REPORT_HOUR:02d}:{_REPORT_MINUTE:02d}")
 elif _result == "already_sent":
     st.caption(f"📋 오늘 AI 딥다이브 리포트 이미 전송됨 — {_REPORT_HOUR:02d}:{_REPORT_MINUTE:02d} 예약")
 elif _result == "not_yet":
-    st.caption(f"⏰ AI 딥다이브 일일 리포트 대기 중 — {_REPORT_HOUR:02d}:{_REPORT_MINUTE:02d} 전송 예정")
+    st.caption(f"⏰ 일일 리포트 대기 중 — 내일 {_REPORT_HOUR:02d}:{_REPORT_MINUTE:02d} 전송 예정")
+elif _result == "window_passed":
+    st.caption(f"⏭️ 오늘 전송 시간({_REPORT_HOUR:02d}:{_REPORT_MINUTE:02d})이 지났습니다 — 내일 재전송")
 elif _result == "not_ready":
     st.caption("⏳ 분석 결과 생성 후 자동 전송됩니다")
 elif _result == "error":
     st.error(f"❌ Discord 전송 실패: {_err}")
-else:
-    st.error("❌ Discord 전송 실패")
