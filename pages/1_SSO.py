@@ -93,8 +93,20 @@ st.markdown("""
 @st.cache_data(show_spinner=False)
 def download_data(ticker: str, start: str, end: str, interval: str = "1d") -> pd.DataFrame:
     df = yf.download(ticker, start=start, end=end, interval=interval, auto_adjust=True, progress=False)
-    df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
-    df = df[["Open", "High", "Low", "Close", "Volume"]].dropna()
+    if df.empty:
+        return df
+    # MultiIndex 컬럼 처리 (yfinance 버전 따라 다름)
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    else:
+        df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
+    # 필요한 컬럼만 추출
+    available = [c for c in ["Open", "High", "Low", "Close", "Volume"] if c in df.columns]
+    if "Close" not in available:
+        return pd.DataFrame()
+    df = df[available].dropna()
+    if "Volume" not in df.columns:
+        df["Volume"] = 0
     return df
 
 
