@@ -436,7 +436,7 @@ def _truncate(text: str, limit: int = 3900) -> str:
     """Discord embed description 한도 내로 자르고 말줄임 표시."""
     if len(text) <= limit:
         return text
-    return text[:limit] + "\n\n… (전체 내용은 대시보드에서 확인하세요)"
+    return text[:limit] + "\n\n… [전체 내용은 대시보드에서 확인하세요](https://stochastic-macro-gfjiavun5rcggzbsr4oyyw.streamlit.app/AI_%EC%A2%85%ED%95%A9%EB%B6%84%EC%84%9D)"
 
 
 def _post_embeds(embeds: list) -> tuple[bool, str]:
