@@ -689,7 +689,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("#### 📊 일일 리포트")
-    daily_report_on = st.toggle("매일 자동 리포트 전송", value=True,
+    daily_report_on = st.toggle("매일 자동 리포트 전송", value=False,
                                 help="매일 오전 8:00에 Mag 7 전체 SSO 현황을 Discord로 전송")
     report_hour, report_minute = 8, 0
 
