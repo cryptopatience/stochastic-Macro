@@ -14,6 +14,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import yfinance as yf
 import streamlit as st
+from dashboard_ui import apply_dashboard_style, dashboard_header, dashboard_card, theme_text, dashboard_plotly_chart
 import requests
 from datetime import datetime
 import google.generativeai as genai
@@ -55,36 +56,8 @@ if "sso_ai_result" not in st.session_state:
 # ─────────────────────────────────────────────────────────────────────────────
 # 라이트 테마 CSS
 # ─────────────────────────────────────────────────────────────────────────────
-st.markdown("""
-<style>
-    /* 전체 배경 */
-    .stApp { background-color: #ffffff; color: #1a1a1a; }
-    section[data-testid="stSidebar"] { background-color: #f5f5f5; }
+apply_dashboard_style()
 
-    /* 메트릭 카드 */
-    div[data-testid="metric-container"] {
-        background-color: #f5f5f5;
-        border: 1px solid #d0d0d0;
-        border-radius: 10px;
-        padding: 14px 18px;
-    }
-    div[data-testid="metric-container"] label { color: #555555 !important; font-size: 0.78rem; }
-    div[data-testid="metric-container"] div[data-testid="stMetricValue"] {
-        color: #1a1a1a !important; font-size: 1.4rem; font-weight: 700;
-    }
-    div[data-testid="metric-container"] div[data-testid="stMetricDelta"] svg { display: none; }
-
-    /* 테이블 */
-    .stDataFrame { border-radius: 8px; overflow: hidden; }
-
-    /* 제목 */
-    h1, h2, h3 { color: #1a1a1a !important; }
-    .subtitle  { color: #555555; font-size: 0.9rem; margin-top: -10px; }
-
-    /* 구분선 */
-    hr { border-color: #d0d0d0; }
-</style>
-""", unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -310,25 +283,25 @@ def build_chart(df: pd.DataFrame, ticker: str, ob: float, os_: float) -> go.Figu
         fig.add_trace(go.Scatter(
             x=sb.index, y=sb["Low"] * 0.990, mode="markers", name="★ 2nd Buy",
             marker=dict(symbol="triangle-up", color="#3fb950", size=16,
-                        line=dict(width=1.5, color="#ffffff")),
+                        line=dict(width=1.5, color=theme_text("#090e15"))),
             showlegend=True
         ), row=1, col=1)
     if not ss.empty:
         fig.add_trace(go.Scatter(
             x=ss.index, y=ss["High"] * 1.010, mode="markers", name="★ 2nd Sell",
             marker=dict(symbol="triangle-down", color="#f85149", size=16,
-                        line=dict(width=1.5, color="#ffffff")),
+                        line=dict(width=1.5, color=theme_text("#090e15"))),
             showlegend=True
         ), row=1, col=1)
 
     # ── SSO ───────────────────────────────────────────────────────────────────
     fig.add_trace(go.Scatter(
         x=df.index, y=df["%K"], name="%K Slow",
-        line=dict(color="#e3b341", width=1.8)
+        line=dict(color=theme_text("#e3b341"), width=1.8)
     ), row=2, col=1)
     fig.add_trace(go.Scatter(
         x=df.index, y=df["%D"], name="%D Slow",
-        line=dict(color="#a5d6ff", width=1.2, dash="dot")
+        line=dict(color=theme_text("#a5d6ff"), width=1.2, dash="dot")
     ), row=2, col=1)
 
     # 과매수/과매도 기준선
@@ -371,10 +344,10 @@ def build_chart(df: pd.DataFrame, ticker: str, ob: float, os_: float) -> go.Figu
     # ── 레이아웃 ──────────────────────────────────────────────────────────────
     fig.update_layout(
         height=750,
-        paper_bgcolor="#ffffff",
-        plot_bgcolor="#ffffff",
-        font=dict(color="#1a1a1a", family="monospace"),
-        legend=dict(bgcolor="#f5f5f5", bordercolor="#d0d0d0",
+        paper_bgcolor=theme_text("#090e15"),
+        plot_bgcolor=theme_text("#090e15"),
+        font=dict(color=theme_text("#e6edf5"), family="monospace"),
+        legend=dict(bgcolor=theme_text("#101823"), bordercolor=theme_text("#263140"),
                     borderwidth=1, font=dict(size=11)),
         xaxis_rangeslider_visible=False,
         xaxis2_rangeslider_visible=False,
@@ -382,8 +355,8 @@ def build_chart(df: pd.DataFrame, ticker: str, ob: float, os_: float) -> go.Figu
         hovermode="x unified",
         margin=dict(l=60, r=40, t=60, b=40),
     )
-    fig.update_xaxes(gridcolor="#e0e0e0", showgrid=True)
-    fig.update_yaxes(gridcolor="#e0e0e0", showgrid=True)
+    fig.update_xaxes(gridcolor=theme_text("#263140"), showgrid=True)
+    fig.update_yaxes(gridcolor=theme_text("#263140"), showgrid=True)
     fig.update_yaxes(range=[0, 100], row=2, col=1)
 
     return fig
@@ -609,8 +582,28 @@ with st.sidebar:
     st.markdown("## ⚙️ 전략 파라미터")
     st.markdown("---")
 
-    ticker = st.text_input("종목 티커", value="AAPL",
-                           help="예) AAPL, TSLA, MSFT, 005930.KS (삼성전자)").upper()
+    stock_options = {
+        **MAG7,
+        "SPY": "S&P 500 ETF",
+        "QQQ": "나스닥 100 ETF",
+        "005930.KS": "삼성전자",
+        "000660.KS": "SK하이닉스",
+        "직접 입력": "직접 입력",
+    }
+    selected_stock = st.selectbox(
+        "종목 선택",
+        options=list(stock_options),
+        format_func=lambda symbol: (
+            "직접 입력" if symbol == "직접 입력"
+            else f"{stock_options[symbol]} ({symbol})"
+        ),
+        help="목록에서 종목을 선택하세요. 목록에 없으면 직접 입력을 선택하세요.",
+    )
+    ticker = (
+        st.text_input("티커 직접 입력", value="AAPL",
+                      help="예) TSLA, 005930.KS").strip().upper()
+        if selected_stock == "직접 입력" else selected_stock
+    )
 
     col1, col2 = st.columns(2)
     with col1:
@@ -701,13 +694,7 @@ with st.sidebar:
 # ─────────────────────────────────────────────────────────────────────────────
 # 메인 타이틀
 # ─────────────────────────────────────────────────────────────────────────────
-st.markdown("""
-# 📈 슬로우 스토캐스틱 오실레이터 (SSO) 전략 대시보드
-<p class='subtitle'>
-두 번째 교차 신호(Second Signal) 기반 — 타임 사이클 동기화 원리 적용
-</p>
-""", unsafe_allow_html=True)
-st.markdown("---")
+dashboard_header("SSO 전략 대시보드", "가격 흐름 · 두 번째 교차 신호 · 백테스트 성과", f"{ticker} / TECHNICAL OVERVIEW")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 실행 로직
@@ -725,7 +712,7 @@ def load_and_process(ticker, start_date, end_date, interval, k_period, k_smooth,
     return df, trades
 
 
-if run_btn or "df" not in st.session_state:
+if run_btn or "df" not in st.session_state or ticker != st.session_state.get("ticker"):
     with st.spinner(f"📡 {ticker} 데이터 불러오는 중..."):
         try:
             df, trades = load_and_process(
@@ -736,10 +723,6 @@ if run_btn or "df" not in st.session_state:
             if df is None:
                 st.error("❌ 데이터를 불러올 수 없습니다. 티커를 확인해 주세요.")
                 st.stop()
-
-            st.session_state["df"]     = df
-            st.session_state["trades"] = trades
-            st.session_state["ticker"] = ticker
 
             if compare_mode:
                 df_wk, trades_wk = load_and_process(
@@ -752,6 +735,10 @@ if run_btn or "df" not in st.session_state:
             else:
                 st.session_state.pop("df_wk", None)
                 st.session_state.pop("trades_wk", None)
+
+            st.session_state["df"]     = df
+            st.session_state["trades"] = trades
+            st.session_state["ticker"] = ticker
 
         except Exception as e:
             st.error(f"오류 발생: {e}")
@@ -777,27 +764,27 @@ elif k_now < oversold:
     zone_color = "#3fb950"
 else:
     zone_label = "⚪ 중립 구간"
-    zone_color = "#555555"
+    zone_color = theme_text("#a7b4c6")
 
-st.markdown(f"""
-<div style="background:#f5f5f5;border:1px solid {zone_color};border-radius:10px;
+st.markdown(theme_text(f"""
+<div style="background:#101823;border:1px solid {zone_color};border-radius:10px;
             padding:12px 20px;margin-bottom:16px;">
   <span style="color:{zone_color};font-weight:700;font-size:1.05rem;">{zone_label}</span>
   &nbsp;&nbsp;|&nbsp;&nbsp;
-  <span style="color:#1a1a1a;">최근 날짜: <b>{last.name.strftime('%Y-%m-%d')}</b></span>
+  <span style="color:#e6edf5;">최근 날짜: <b>{last.name.strftime('%Y-%m-%d')}</b></span>
   &nbsp;&nbsp;|&nbsp;&nbsp;
   <span style="color:#e3b341;">%K = <b>{k_now:.1f}</b></span>
   &nbsp;&nbsp;
   <span style="color:#a5d6ff;">%D = <b>{d_now:.1f}</b></span>
 </div>
-""", unsafe_allow_html=True)
+"""), unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 렌더 헬퍼 — 지표 카드 + 차트 + 거래 내역 + 신호 테이블
 # ─────────────────────────────────────────────────────────────────────────────
 def highlight_row(row):
-    color = "background-color:#e6f4ea;" if row["수익률(%)"] > 0 \
-            else "background-color:#fce8e6;"
+    color = theme_text("background-color:#12332d;") if row["수익률(%)"] > 0 \
+            else theme_text("background-color:#392027;")
     return [color] * len(row)
 
 
@@ -821,8 +808,19 @@ def render_analysis(df_r, trades_r, ticker_r, label, hold_days_r, overbought_r, 
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    fig = build_chart(df_r, f"{ticker_r} ({label})", overbought_r, oversold_r)
-    st.plotly_chart(fig, use_container_width=True)
+    overview, chart = st.columns([1, 3], gap="medium")
+    with overview:
+        current = df_r.dropna(subset=["%K", "%D"]).iloc[-1]
+        status = "과매수" if current["%K"] > overbought_r else "과매도" if current["%K"] < oversold_r else "중립"
+        dashboard_card("MARKET CONDITION", status,
+                       f"%K {current['%K']:.1f} · %D {current['%D']:.1f}")
+        dashboard_card(f"{ticker_r} / 종가", f"{current['Close']:,.2f}",
+                       f"데이터 기준일 {current.name:%Y-%m-%d} · 가격 단위는 종목 거래 통화")
+        st.caption("두 번째 교차 신호를 기준으로 분석합니다. 과매수·과매도 상태는 단독 매매 신호가 아닙니다.")
+    with chart:
+        fig = build_chart(df_r, f"{ticker_r} ({label})", overbought_r, oversold_r)
+        fig.update_layout(height=620)
+        dashboard_plotly_chart(fig, use_container_width=True)
 
     st.markdown("---")
     st.markdown("### 📋 백테스트 거래 내역 (두 번째 매수 신호 기준)")
@@ -834,7 +832,7 @@ def render_analysis(df_r, trades_r, ticker_r, label, hold_days_r, overbought_r, 
             trades_r.style
             .apply(highlight_row, axis=1)
             .format({"매수가": "{:.2f}", "매도가": "{:.2f}", "수익률(%)": "{:+.2f}%"})
-            .set_properties(**{"color": "#1a1a1a", "border": "1px solid #d0d0d0"})
+            .set_properties(**{"color": theme_text("#e6edf5"), "border": theme_text("1px solid #263140")})
         )
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
@@ -847,13 +845,13 @@ def render_analysis(df_r, trades_r, ticker_r, label, hold_days_r, overbought_r, 
             textposition="outside",
         ))
         bar_fig.update_layout(
-            paper_bgcolor="#ffffff", plot_bgcolor="#ffffff",
-            font=dict(color="#1a1a1a"), height=280,
-            yaxis=dict(gridcolor="#e0e0e0", zeroline=True, zerolinecolor="#555555"),
-            xaxis=dict(gridcolor="#e0e0e0"),
+            paper_bgcolor=theme_text("#090e15"), plot_bgcolor=theme_text("#090e15"),
+            font=dict(color=theme_text("#e6edf5")), height=280,
+            yaxis=dict(gridcolor=theme_text("#263140"), zeroline=True, zerolinecolor=theme_text("#a7b4c6")),
+            xaxis=dict(gridcolor=theme_text("#263140")),
             showlegend=False, margin=dict(l=40, r=20, t=20, b=40),
         )
-        st.plotly_chart(bar_fig, use_container_width=True)
+        dashboard_plotly_chart(bar_fig, use_container_width=True)
 
     st.markdown("---")
     col_buy, col_sell = st.columns(2)
@@ -862,13 +860,17 @@ def render_analysis(df_r, trades_r, ticker_r, label, hold_days_r, overbought_r, 
         sb_df = df_r[df_r["second_buy"]][["Close", "%K", "%D"]].copy()
         sb_df.index = sb_df.index.strftime("%Y-%m-%d")
         sb_df.columns = ["종가", "%K", "%D"]
-        st.dataframe(sb_df.round(2), use_container_width=True)
+        st.dataframe(sb_df.round(2).style.format(precision=2).set_properties(**{
+            "background-color": theme_text("#101823"), "color": theme_text("#e6edf5")
+        }), use_container_width=True)
     with col_sell:
         st.markdown("#### 🔴 두 번째 매도 신호 발생일")
         ss_df = df_r[df_r["second_sell"]][["Close", "%K", "%D"]].copy()
         ss_df.index = ss_df.index.strftime("%Y-%m-%d")
         ss_df.columns = ["종가", "%K", "%D"]
-        st.dataframe(ss_df.round(2), use_container_width=True)
+        st.dataframe(ss_df.round(2).style.format(precision=2).set_properties(**{
+            "background-color": theme_text("#101823"), "color": theme_text("#e6edf5")
+        }), use_container_width=True)
 
     return avg_ret, win_rate, len(trades_r)
 
@@ -897,37 +899,37 @@ if compare_mode and df_wk is not None:
     diff_wr   = wr_w  - wr_d
     diff_cnt  = cnt_w - cnt_d
 
-    st.markdown(f"""
-    <div style="background:#f5f5f5;border:1px solid #d0d0d0;border-radius:10px;
+    st.markdown(theme_text(f"""
+    <div style="background:#101823;border:1px solid #263140;border-radius:10px;
                 padding:16px 24px;margin-bottom:20px;">
       <table style="width:100%;border-collapse:collapse;font-family:monospace;">
-        <tr style="color:#555555;font-size:0.8rem;">
+        <tr style="color:#a7b4c6;font-size:0.8rem;">
           <th style="text-align:left;padding:4px 12px;">지표</th>
           <th style="text-align:center;padding:4px 12px;">일봉 (1d)</th>
           <th style="text-align:center;padding:4px 12px;">주봉 (1wk)</th>
           <th style="text-align:center;padding:4px 12px;">차이 (주봉-일봉)</th>
         </tr>
-        <tr style="color:#1a1a1a;font-size:1rem;">
+        <tr style="color:#e6edf5;font-size:1rem;">
           <td style="padding:6px 12px;">평균 수익률</td>
           <td style="text-align:center;padding:6px 12px;">{ar_d:+.2f}%</td>
           <td style="text-align:center;padding:6px 12px;">{ar_w:+.2f}%</td>
           <td style="text-align:center;padding:6px 12px;color:{delta_color(diff_ret)};font-weight:700;">{diff_ret:+.2f}%</td>
         </tr>
-        <tr style="color:#1a1a1a;font-size:1rem;">
+        <tr style="color:#e6edf5;font-size:1rem;">
           <td style="padding:6px 12px;">승률</td>
           <td style="text-align:center;padding:6px 12px;">{wr_d:.1f}%</td>
           <td style="text-align:center;padding:6px 12px;">{wr_w:.1f}%</td>
           <td style="text-align:center;padding:6px 12px;color:{delta_color(diff_wr)};font-weight:700;">{diff_wr:+.1f}%p</td>
         </tr>
-        <tr style="color:#1a1a1a;font-size:1rem;">
+        <tr style="color:#e6edf5;font-size:1rem;">
           <td style="padding:6px 12px;">거래 횟수</td>
           <td style="text-align:center;padding:6px 12px;">{cnt_d}회</td>
           <td style="text-align:center;padding:6px 12px;">{cnt_w}회</td>
-          <td style="text-align:center;padding:6px 12px;color:#555555;">{diff_cnt:+d}회</td>
+          <td style="text-align:center;padding:6px 12px;color:#a7b4c6;">{diff_cnt:+d}회</td>
         </tr>
       </table>
     </div>
-    """, unsafe_allow_html=True)
+    """), unsafe_allow_html=True)
 
     tab_d, tab_w = st.tabs(["📅 일봉 (1d)", "📆 주봉 (1wk)"])
     with tab_d:
@@ -969,14 +971,14 @@ def _render_mag7_table(alerts: list) -> None:
     result_df = pd.DataFrame(rows)
 
     def style_mag7(row):
-        if "Buy"  in str(row["신호"]): return ["background-color:#e6f4ea"] * len(row)
-        if "Sell" in str(row["신호"]): return ["background-color:#fce8e6"] * len(row)
-        return ["background-color:#f5f5f5"] * len(row)
+        if "Buy"  in str(row["신호"]): return [theme_text("background-color:#12332d")] * len(row)
+        if "Sell" in str(row["신호"]): return [theme_text("background-color:#392027")] * len(row)
+        return [theme_text("background-color:#101823")] * len(row)
 
     st.dataframe(
         result_df.style
         .apply(style_mag7, axis=1)
-        .set_properties(**{"color": "#1a1a1a", "border": "1px solid #d0d0d0"}),
+        .set_properties(**{"color": theme_text("#e6edf5"), "border": theme_text("1px solid #263140")}),
         use_container_width=True,
         hide_index=True,
     )
@@ -1073,14 +1075,14 @@ if recent_rows:
     recent_df = recent_df.sort_values(["_sig_order", "신호일"], ascending=[True, False]).drop(columns=["_sig_order"])
 
     def style_recent(row):
-        if "Buy"  in str(row["신호"]): return ["background-color:#e6f4ea"] * len(row)
-        if "Sell" in str(row["신호"]): return ["background-color:#fce8e6"] * len(row)
-        return ["background-color:#f5f5f5"] * len(row)
+        if "Buy"  in str(row["신호"]): return [theme_text("background-color:#12332d")] * len(row)
+        if "Sell" in str(row["신호"]): return [theme_text("background-color:#392027")] * len(row)
+        return [theme_text("background-color:#101823")] * len(row)
 
     st.dataframe(
         recent_df.style
         .apply(style_recent, axis=1)
-        .set_properties(**{"color": "#1a1a1a", "border": "1px solid #d0d0d0"}),
+        .set_properties(**{"color": theme_text("#e6edf5"), "border": theme_text("1px solid #263140")}),
         use_container_width=True,
         hide_index=True,
     )
@@ -1123,20 +1125,27 @@ st.markdown("## 🤖 AI 딥다이브 분석")
 _ai_cache_key = (str(ticker), int(k_period), int(k_smooth), int(d_smooth),
                  int(overbought), int(oversold), int(hold_days),
                  str(start_date), str(end_date))
-_ai_force = st.button("🔄 AI 분석 새로고침", key="sso_ai_refresh")
+_ai_force = st.button("▶ AI 분석 실행", key="sso_ai_refresh")
 
 if _ai_force or st.session_state.get("sso_ai_cache_key") != _ai_cache_key:
     st.session_state["sso_ai_cache_key"] = _ai_cache_key
     st.session_state.pop("sso_ai_result", None)  # 캐시 초기화
 
-if "sso_ai_result" not in st.session_state:
-    _do_ai = True
-else:
-    _do_ai = False
+_do_ai = _ai_force
+if not _do_ai and "sso_ai_result" not in st.session_state:
+    st.info("AI 분석 실행 버튼을 누르면 현재 종목과 설정으로 분석을 시작합니다.")
 
 if _do_ai:
+    _gemini_key = st.secrets.get("GEMINI_API_KEY", "")
+    if not _gemini_key:
+        st.info("AI 분석을 사용하려면 Gemini API 키를 입력하세요. 차트와 백테스트는 키 없이 사용할 수 있습니다.")
+        _gemini_key = st.text_input(
+            "Gemini API 키", type="password", key="sso_gemini_api_key",
+            help="키는 파일에 저장하지 않고 현재 접속 세션에서만 사용합니다.",
+        ).strip()
+        if not _gemini_key:
+            st.stop()
     try:
-        _gemini_key = st.secrets["GEMINI_API_KEY"]
         genai.configure(api_key=_gemini_key)
     except Exception as _e:
         st.error(f"❌ Gemini API 키 오류: {_e}")
@@ -1191,11 +1200,11 @@ if _do_ai:
 
     def _style_rank(row):
         if row.name == 1:
-            return ["background-color:#fff8e1; font-weight:700"] * len(row)
+            return [theme_text("background-color:#352c1b; font-weight:700")] * len(row)
         if row.name == 2:
-            return ["background-color:#f5f5f5; font-weight:600"] * len(row)
+            return [theme_text("background-color:#101823; font-weight:600")] * len(row)
         if row.name == 3:
-            return ["background-color:#fafafa"] * len(row)
+            return [theme_text("background-color:#131d2a")] * len(row)
         return [""] * len(row)
 
     st.dataframe(
@@ -1417,9 +1426,9 @@ if "sso_ai_result" in st.session_state:
             st.caption(f"파라미터: k_period={k_period}, k_smooth={k_smooth}, d_smooth={d_smooth}  |  보유기간={hold_days}일  |  기간: {start_date} ~ {end_date}")
 
             def _style_rank(row):
-                if row.name == 1: return ["background-color:#fff8e1; font-weight:700"] * len(row)
-                if row.name == 2: return ["background-color:#f5f5f5; font-weight:600"] * len(row)
-                if row.name == 3: return ["background-color:#fafafa"] * len(row)
+                if row.name == 1: return [theme_text("background-color:#352c1b; font-weight:700")] * len(row)
+                if row.name == 2: return [theme_text("background-color:#101823; font-weight:600")] * len(row)
+                if row.name == 3: return [theme_text("background-color:#131d2a")] * len(row)
                 return [""] * len(row)
 
             st.dataframe(
@@ -1431,12 +1440,12 @@ if "sso_ai_result" in st.session_state:
 
     st.markdown(f"### 🤖 AI 분석 결과 — {_res['ticker']}")
     st.caption(f"생성 시각: {_res['time']}  |  딥다이브 모드")
-    st.markdown(f"""
-<div style="background:#f9f9f9;border:1px solid #d0d0d0;border-radius:12px;
-            padding:20px 24px;margin:12px 0;font-size:0.95rem;line-height:1.7;color:#1a1a1a;">
+    st.markdown(theme_text(f"""
+<div style="background:#101823;border:1px solid #263140;border-radius:12px;
+            padding:20px 24px;margin:12px 0;font-size:0.95rem;line-height:1.7;color:#e6edf5;">
 {_analysis_text.replace(chr(10), '<br>')}
 </div>
-""", unsafe_allow_html=True)
+"""), unsafe_allow_html=True)
 
     st.download_button(
         "📥 분석 결과 다운로드 (.txt)",

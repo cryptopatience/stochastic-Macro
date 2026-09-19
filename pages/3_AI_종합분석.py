@@ -8,6 +8,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import streamlit as st
+from dashboard_ui import apply_dashboard_style, dashboard_header, dashboard_card, theme_text, dashboard_plotly_chart
 
 # ── 인증 체크 ─────────────────────────────────────────────────────────────────
 if not st.session_state.get("authenticated"):
@@ -55,24 +56,8 @@ import os as _os
 # ─────────────────────────────────────────────────────────────────────────────
 # 라이트 테마
 # ─────────────────────────────────────────────────────────────────────────────
-st.markdown("""
-<style>
-    .stApp { background-color: #ffffff; color: #1a1a1a; }
-    section[data-testid="stSidebar"] { background-color: #f5f5f5; }
-    h1, h2, h3, h4 { color: #1a1a1a !important; }
-    hr { border-color: #d0d0d0; }
-    .analysis-box {
-        background: #f9f9f9;
-        border: 1px solid #d0d0d0;
-        border-radius: 12px;
-        padding: 20px 24px;
-        margin: 12px 0;
-        font-size: 0.95rem;
-        line-height: 1.7;
-        color: #1a1a1a;
-    }
-</style>
-""", unsafe_allow_html=True)
+apply_dashboard_style()
+
 
 st.markdown("# 🤖 AI 통합 딥다이브 분석")
 st.markdown("**SSO 기술적 분석 + 매크로·신용위험 분석**을 통합해 Gemini AI가 최종 투자 판단을 제공합니다.")
@@ -204,16 +189,21 @@ def _run_gemini(prompt: str, max_tokens: int = 16384) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 # 새로고침 버튼
 # ─────────────────────────────────────────────────────────────────────────────
-_force = st.button("🔄 전체 분석 새로고침", key="unified_refresh")
+_force = st.button("▶ AI 종합분석 실행", key="unified_refresh")
 if _force:
     for k in ["sso_ai_result", "macro_ai_result", "unified_ai_result",
               "unified_cache_key", "p3_sso_done", "p3_macro_done"]:
         st.session_state.pop(k, None)
 
+if not _force and any(k not in st.session_state for k in
+                      ("sso_ai_result", "macro_ai_result", "unified_ai_result")):
+    st.info("AI 종합분석 실행 버튼을 누르면 SSO·매크로 분석과 통합 분석을 시작합니다.")
+    st.stop()
+
 # ─────────────────────────────────────────────────────────────────────────────
 # STEP 1: SSO 딥다이브 자동 생성 (없으면)
 # ─────────────────────────────────────────────────────────────────────────────
-if "sso_ai_result" not in st.session_state:
+if _force and "sso_ai_result" not in st.session_state:
     with st.spinner("📈 SSO 전 종목 스캔 + AI 딥다이브 분석 중..."):
         try:
             sso_snap = _get_sso_snapshot()
@@ -265,7 +255,7 @@ if "sso_ai_result" not in st.session_state:
 # ─────────────────────────────────────────────────────────────────────────────
 # STEP 2: 매크로 딥다이브 자동 생성 (없으면)
 # ─────────────────────────────────────────────────────────────────────────────
-if "macro_ai_result" not in st.session_state:
+if _force and "macro_ai_result" not in st.session_state:
     with st.spinner("🏦 FRED 매크로 데이터 수집 + AI 딥다이브 분석 중..."):
         try:
             macro_snap = _get_macro_snapshot()
@@ -338,7 +328,11 @@ if st.session_state.get("unified_cache_key") != _cache_key:
     st.session_state["unified_cache_key"] = _cache_key
     st.session_state.pop("unified_ai_result", None)
 
-if "unified_ai_result" not in st.session_state:
+if not _force and "unified_ai_result" not in st.session_state:
+    st.info("기초 분석 결과가 변경되었습니다. AI 종합분석 실행 버튼을 눌러 다시 분석하세요.")
+    st.stop()
+
+if _force and "unified_ai_result" not in st.session_state:
     with st.spinner("🤖 Gemini AI 통합 딥다이브 분석 중... (잠시 기다려 주세요)"):
         try:
             unified_prompt = f"""

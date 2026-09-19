@@ -1,4 +1,6 @@
 .streamlit/secrets.toml
+__pycache__/
+*.pyc
 _ai_cache/
 *.daily_report_sent
 .ai_daily_report_sent

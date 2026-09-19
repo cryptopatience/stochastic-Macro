@@ -1,4 +1,5 @@
 import streamlit as st
+from dashboard_ui import apply_dashboard_style, dashboard_header, dashboard_card, theme_text, dashboard_plotly_chart
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -43,13 +44,8 @@ if "macro_ai_result" not in st.session_state:
         st.session_state["macro_ai_result"] = _cached
 
 # 흰색 배경 테마
-st.markdown("""
-<style>
-    .stApp { background-color: #ffffff; color: #1a1a1a; }
-    section[data-testid="stSidebar"] { background-color: #f5f5f5; }
-    h1, h2, h3 { color: #1a1a1a !important; }
-</style>
-""", unsafe_allow_html=True)
+apply_dashboard_style()
+
 
 # 페이지 제목과 부제목 추가
 st.title("🏦 매크로 credit risk (과거 경제반영 후행지표)")
@@ -1166,19 +1162,19 @@ def main():
         for asset, alloc in scenario_info['assets'].items():
             st.markdown(f"- **{asset}**: {alloc}")
     
-    # AI 딥다이브 분석 (메인 대시보드 — 자동 수행)
+    # AI 딥다이브 분석 (버튼을 눌렀을 때만 수행)
     if GEMINI_AVAILABLE:
         st.markdown("---")
         st.markdown("### 🤖 AI 딥다이브 분석")
 
         _macro_cache_key = selected_period
-        _macro_force = st.button("🔄 AI 분석 새로고침", key="main_ai_refresh_btn")
+        _macro_force = st.button("▶ AI 분석 실행", key="main_ai_refresh_btn")
 
         if _macro_force or st.session_state.get("macro_ai_cache_key") != _macro_cache_key:
             st.session_state["macro_ai_cache_key"] = _macro_cache_key
             st.session_state.pop("macro_ai_result", None)
 
-        if "macro_ai_result" not in st.session_state:
+        if _macro_force:
             with st.spinner("🧠 Gemini 딥다이브 분석 중..."):
                 try:
                     _result = generate_comprehensive_analysis_deep_dive(df, risk)
@@ -1189,6 +1185,9 @@ def main():
                     _ai_cache_save("macro_ai_result", st.session_state["macro_ai_result"])
                 except Exception as _e:
                     st.error(f"AI 분석 중 오류: {str(_e)}")
+
+        if not _macro_force and "macro_ai_result" not in st.session_state:
+            st.info("AI 분석 실행 버튼을 누르면 현재 기간의 매크로 분석을 시작합니다.")
 
         if "macro_ai_result" in st.session_state:
             _res = st.session_state["macro_ai_result"]
@@ -1210,7 +1209,7 @@ def main():
     
     try:
         main_chart = plot_macro_risk_dashboard(df, inversion_periods, risk, period_name)
-        st.plotly_chart(main_chart, use_container_width=True)
+        dashboard_plotly_chart(main_chart, use_container_width=True)
     except Exception as e:
         st.error(f"차트 생성 오류: {str(e)}")
         st.exception(e)
@@ -1224,7 +1223,7 @@ def main():
         
         try:
             scenario_chart = plot_scenario_analysis(df, period_name)
-            st.plotly_chart(scenario_chart, use_container_width=True)
+            dashboard_plotly_chart(scenario_chart, use_container_width=True)
         except Exception as e:
             st.error(f"시나리오 차트 오류: {str(e)}")
         
@@ -1247,10 +1246,10 @@ def main():
         if analysis_mode == "종합 분석":
             st.markdown("#### 종합 시장 딥다이브 분석")
 
-            _tab_force = st.button("🔄 분석 새로고침", key="comprehensive_refresh_btn")
+            _tab_force = st.button("▶ AI 분석 실행", key="comprehensive_refresh_btn")
             if _tab_force:
                 st.session_state.pop("macro_ai_result", None)
-                st.session_state.pop("macro_ai_cache_key", None)
+                st.session_state["macro_ai_cache_key"] = selected_period
 
             # 메인 대시보드에서 이미 분석된 결과 재사용
             if "macro_ai_result" in st.session_state:
@@ -1264,7 +1263,7 @@ def main():
                     "text/markdown",
                     key="tab_download_btn",
                 )
-            else:
+            elif _tab_force:
                 with st.spinner("🧠 Gemini 딥다이브 분석 중..."):
                     try:
                         _result = generate_comprehensive_analysis_deep_dive(df, risk)
@@ -1276,6 +1275,8 @@ def main():
                         st.rerun()
                     except Exception as _e:
                         st.error(f"분석 중 오류: {str(_e)}")
+            else:
+                st.info("AI 분석 실행 버튼을 누르면 종합 분석을 시작합니다.")
         
         else:  # 개별 지표 분석
             st.markdown("#### 분석할 지표를 선택하세요")
