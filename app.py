@@ -6,6 +6,7 @@
 """
 
 import streamlit as st
+from dashboard_auth import require_login
 from dashboard_ui import apply_dashboard_style, dashboard_header, dashboard_card, theme_text, dashboard_plotly_chart
 
 st.set_page_config(
@@ -21,27 +22,7 @@ apply_dashboard_style()
 # ─────────────────────────────────────────────────────────────────────────────
 # 비밀번호 인증
 # ─────────────────────────────────────────────────────────────────────────────
-_CORRECT_PW = st.secrets.get("APP_PASSWORD", "1234")
-
-if not st.session_state.get("authenticated"):
-    st.markdown("## 🔒 통합 투자 대시보드")
-    st.markdown("접속하려면 비밀번호를 입력하세요.")
-    pw = st.text_input("비밀번호", type="password", key="pw_input")
-    if st.button("로그인", type="primary"):
-        if pw == _CORRECT_PW:
-            st.session_state["authenticated"] = True
-            st.rerun()
-        else:
-            st.error("❌ 비밀번호가 틀렸습니다.")
-    st.stop()
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 인증 후 메인 화면
-# ─────────────────────────────────────────────────────────────────────────────
-with st.sidebar:
-    if st.button("🔓 로그아웃", key="logout_btn"):
-        st.session_state["authenticated"] = False
-        st.rerun()
+require_login()
 
 dashboard_header("투자 리서치 대시보드", "기술적 신호부터 매크로 환경까지, 투자 판단에 필요한 정보를 한곳에서 확인하세요.")
 st.markdown("""
