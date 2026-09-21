@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>scgt login storage</title>
+</head>
+<body>
+<script>
+const storageKey = "scgt-dashboard-session-v1";
+
+function send(type, data) {
+  window.parent.postMessage(Object.assign({isStreamlitMessage: true, type: type}, data || {}), "*");
+}
+
+function currentToken() {
+  return sessionStorage.getItem(storageKey);
+}
+
+window.addEventListener("message", function (event) {
+  if (event.source !== window.parent || !event.data || event.data.type !== "streamlit:render") {
+    return;
+  }
+  const args = event.data.args || {};
+  const action = args.action;
+  const requestId = args.request_id;
+  const token = args.token;
+  try {
+    if (action === "save" && typeof token === "string" && token) {
+      sessionStorage.setItem(storageKey, token);
+    }
+    if (action === "clear") {
+      sessionStorage.removeItem(storageKey);
+    }
+    send("streamlit:setComponentValue", {
+      value: {request_id: requestId, token: currentToken()},
+      dataType: "json"
+    });
+  } catch (_) {
+    send("streamlit:setComponentValue", {
+      value: {request_id: requestId, error: true},
+      dataType: "json"
+    });
+  }
+  send("streamlit:setFrameHeight", {height: 0});
+});
+
+send("streamlit:componentReady", {apiVersion: 1});
+send("streamlit:setFrameHeight", {height: 0});
+</script>
+</body>
+</html>
