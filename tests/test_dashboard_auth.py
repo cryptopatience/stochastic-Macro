@@ -89,7 +89,7 @@ def test_read_app_password_rejects_blank(monkeypatch):
     assert read_app_password() is None
 
 
-def test_pages_call_require_login_instead_of_session_flag():
+def test_pages_call_require_login_before_heavy_imports():
     files = [
         ROOT / "app.py",
         ROOT / "pages" / "1_SSO.py",
@@ -102,6 +102,11 @@ def test_pages_call_require_login_instead_of_session_flag():
         assert "require_login()" in text
         assert 'st.session_state.get("authenticated")' not in text
         assert 'secrets.get("APP_PASSWORD", "1234")' not in text
+        login_at = text.index("require_login()")
+        for marker in ("import plotly", "import yfinance", "from fredapi", "google.generativeai"):
+            at = text.find(marker)
+            if at != -1:
+                assert at > login_at, f"{path.name} imports {marker} before require_login()"
 
 
 @pytest.fixture
@@ -114,6 +119,7 @@ def test_app_fails_closed_without_password(isolated_env):
     from streamlit.testing.v1 import AppTest
 
     at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=10)
+    at.secrets["UNRELATED"] = "placeholder"
     at.run()
     assert at.error
     assert any("APP_PASSWORD" in str(item.value) for item in at.error)

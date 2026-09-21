@@ -8,21 +8,22 @@ SSO 슬로우 스토캐스틱 오실레이터 — Streamlit 인터랙티브 대�
 import warnings
 warnings.filterwarnings("ignore")
 
+import streamlit as st
+from dashboard_auth import require_login
+from dashboard_ui import apply_dashboard_style, dashboard_header, dashboard_card, theme_text, dashboard_plotly_chart
+
+# ── 인증 체크 ─────────────────────────────────────────────────────────────────
+apply_dashboard_style()
+require_login()
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import yfinance as yf
-import streamlit as st
-from dashboard_auth import require_login
-from dashboard_ui import apply_dashboard_style, dashboard_header, dashboard_card, theme_text, dashboard_plotly_chart
 import requests
 from datetime import datetime
 import google.generativeai as genai
-
-# ── 인증 체크 ─────────────────────────────────────────────────────────────────
-apply_dashboard_style()
-require_login()
 
 # ── AI 결과 디스크 캐시 헬퍼 ──────────────────────────────────────────────────
 import json as _json, os as _os_cache

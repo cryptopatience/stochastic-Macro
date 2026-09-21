@@ -1,12 +1,6 @@
 import streamlit as st
 from dashboard_auth import require_login
 from dashboard_ui import apply_dashboard_style, dashboard_header, dashboard_card, theme_text, dashboard_plotly_chart
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from fredapi import Fred
-from datetime import datetime, timedelta
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -14,6 +8,13 @@ warnings.filterwarnings('ignore')
 # ── 인증 체크 ─────────────────────────────────────────────────────────────────
 apply_dashboard_style()
 require_login()
+
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from fredapi import Fred
+from datetime import datetime, timedelta
 
 # ── AI 결과 디스크 캐시 헬퍼 ──────────────────────────────────────────────────
 import json as _json, os as _os_cache
