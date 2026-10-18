@@ -52,6 +52,7 @@ from datetime import datetime, timedelta
 import google.generativeai as genai
 import requests
 import os as _os
+from discord_config import discord_webhook_url
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 라이트 테마
@@ -418,7 +419,7 @@ st.download_button(
 # ─────────────────────────────────────────────────────────────────────────────
 # Discord 일일 자동 발송 (매일 08:00)
 # ─────────────────────────────────────────────────────────────────────────────
-_WH_URL          = "https://discord.com/api/webhooks/1487415854839894076/i2HkxX91ZbcWFzOHe9QZjLvNNXPl-j6t1rZs2hnQcvC0gbzk0l0Ohyce2nXU5C3IYD0A"
+_WH_URL          = discord_webhook_url()
 _REPORT_HOUR     = 8
 _REPORT_MINUTE   = 0
 _SEND_WINDOW_MIN = 10   # 전송 가능 시간 윈도우 (분) — 08:00 ~ 08:09 만 전송
@@ -435,6 +436,8 @@ def _truncate(text: str, limit: int = 3900) -> str:
 
 def _post_embeds(embeds: list) -> tuple[bool, str]:
     """embed 목록을 10개씩 나눠 전송. (성공여부, 오류메시지) 반환."""
+    if not _WH_URL:
+        return False, "webhook not configured"
     try:
         for i in range(0, len(embeds), 10):
             r = requests.post(_WH_URL, json={"embeds": embeds[i:i+10]}, timeout=20)
@@ -448,6 +451,9 @@ def _post_embeds(embeds: list) -> tuple[bool, str]:
 def _check_and_send_ai_daily_report() -> tuple[str, str]:
     """매일 08:00~08:09 사이 최초 1회 AI 딥다이브 리포트를 Discord로 전송.
     반환: (상태코드, 오류메시지)"""
+    if not _WH_URL:
+        return "skipped", ""
+
     now       = datetime.now()
     today_str = now.strftime("%Y-%m-%d")
 
@@ -522,3 +528,5 @@ elif _result == "not_ready":
     st.caption("⏳ 분석 결과 생성 후 자동 전송됩니다")
 elif _result == "error":
     st.error(f"❌ Discord 전송 실패: {_err}")
+elif _result == "skipped":
+    st.caption("Discord 웹훅이 설정되지 않아 일일 리포트 전송을 건너뜁니다.")

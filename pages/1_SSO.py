@@ -18,6 +18,7 @@ from dashboard_ui import apply_dashboard_style, dashboard_header, dashboard_card
 import requests
 from datetime import datetime
 import google.generativeai as genai
+from discord_config import discord_webhook_url
 
 # ── 인증 체크 ─────────────────────────────────────────────────────────────────
 if not st.session_state.get("authenticated"):
@@ -378,7 +379,9 @@ MAG7 = {
 
 
 def send_discord(webhook_url: str, embeds: list) -> bool:
-    """Discord Webhook으로 embed 메시지 전송."""
+    """Discord Webhook으로 embed 메시지 전송. URL이 없으면 전송하지 않는다."""
+    if not (webhook_url or "").strip():
+        return False
     try:
         resp = requests.post(
             webhook_url,
@@ -665,7 +668,7 @@ with st.sidebar:
     st.markdown("#### ⏱️ 타임프레임 비교")
     compare_mode = st.checkbox("일봉 vs 주봉 비교 모드", value=True)
 
-    st.session_state["discord_url"] = "https://discord.com/api/webhooks/1487415854839894076/i2HkxX91ZbcWFzOHe9QZjLvNNXPl-j6t1rZs2hnQcvC0gbzk0l0Ohyce2nXU5C3IYD0A"
+    st.session_state["discord_url"] = discord_webhook_url()
 
     st.markdown("---")
     st.markdown("#### 🔔 Mag 7 디스코드 알림")
