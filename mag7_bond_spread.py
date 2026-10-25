@@ -738,6 +738,123 @@ def _download_csv(spreads: pd.DataFrame, bonds: list[dict]) -> str:
     return ordered.to_csv(index=False)
 
 
+def _selected_ai_line(bond: dict, spreads: pd.DataFrame) -> str:
+    """한 회사의 최신 스프레드와 1주·1개월 변화를 문장으로 만든다."""
+    label = (
+        f"{bond['ticker']} {bond.get('issuer') or bond.get('name') or ''} "
+        f"{format_coupon(bond['coupon'])}% {bond['maturity']}"
+        f" (CUSIP {bond.get('cusip') or '없음'}, FINRA {bond.get('symbol') or '없음'})"
+    )
+    group = spreads[spreads["cusip"] == bond.get("cusip")] if not spreads.empty else spreads
+    if group.empty:
+        extra = f" {bond['note']}" if bond.get("note") else ""
+        return f"- {label}: 같은 날의 체결과 DGS10이 없어 스프레드를 계산하지 못했습니다.{extra}"
+    ordered = group.sort_values("date")
+    latest_row = ordered.iloc[-1]
+    series = ordered.set_index("date")["spread_bp"]
+    week = lookback_change(series, 7)
+    month = lookback_change(series, 30)
+    text = (
+        f"- {label}: 최신 스프레드 {float(latest_row['spread_bp']):.1f} bp "
+        f"({_fmt_date(latest_row['date'])}, 회사채 {float(latest_row['bond_yield']):.2f}%, "
+        f"같은 날 DGS10 {float(latest_row['ust10y']):.2f}%). "
+        f"약 1주 전 대비 {_fmt_change(week['change'], week['prior_date'])}. "
+        f"약 1개월 전 대비 {_fmt_change(month['change'], month['prior_date'])}."
+    )
+    if bond.get("note"):
+        text += f" {bond['note']}"
+    return text
+
+
+def build_mag7_ai_context(
+    panel: dict,
+    treasury: pd.Series | None = None,
+    treasury_error: str | None = None,
+) -> str:
+    """Gemini에 넘길 MAG7 스프레드 문맥. 입력만 사용하고 네트워크를 호출하지 않는다."""
+    lines = [
+        "MAG7 회사채 당일 마지막 체결 수익률에서 같은 날 미국 10년물(FRED DGS10)을 뺀 스프레드입니다.",
+        "만기가 같은 국채와의 G-스프레드가 아니라 10년물 단일 금리와의 차이입니다.",
+        "단위는 bp(1%p = 100bp)이고, 아래 증감은 스프레드 bp의 차이입니다. 퍼센트 변화율이 아닙니다.",
+        "회사채 체결과 DGS10이 같은 날 모두 있는 경우만 계산했고, 빈 날은 보간하지 않았습니다.",
+        "수치가 없으면 값을 추정하거나 채우지 마세요.",
+    ]
+    bonds = list(panel.get("bonds") or [])
+    if treasury_error or treasury is None or len(treasury) == 0:
+        lines.append(
+            "미국 10년물(DGS10) 최신 고시를 불러오지 못했습니다. "
+            "회사채와 10년물의 스프레드는 계산할 수 없습니다."
+            + (f" ({treasury_error})" if treasury_error else "")
+        )
+        spreads = pd.DataFrame(columns=["cusip", "date", "bond_yield", "ust10y", "spread_bp"])
+    else:
+        clean = pd.to_numeric(treasury, errors="coerce").dropna().sort_index()
+        if clean.empty:
+            lines.append("미국 10년물(DGS10) 고시값에 숫자가 없어 스프레드를 계산할 수 없습니다.")
+            spreads = pd.DataFrame(columns=["cusip", "date", "bond_yield", "ust10y", "spread_bp"])
+        else:
+            lines.append(
+                f"미국 10년물(DGS10) 최근 고시: {float(clean.iloc[-1]):.2f}% ({_fmt_date(clean.index[-1])})."
+            )
+            spreads = compute_spreads(panel.get("yields") or [], clean)
+
+    if not bonds:
+        lines.append(
+            "MAG7 회사채 − 미국 10년물 스프레드 데이터는 현재 이용할 수 없습니다. "
+            "회사별 채권과 스프레드를 받지 못했습니다."
+        )
+    for bond in bonds:
+        status = bond.get("status")
+        ticker = bond.get("ticker") or ""
+        if status == "selected":
+            lines.append(_selected_ai_line(bond, spreads))
+        elif status == "missing":
+            note = bond.get("note") or f"{bond.get('name') or ticker}: 조건에 맞는 채권이 없습니다."
+            lines.append(
+                f"- {ticker}: 적합한 회사채가 없습니다. 스프레드를 계산하지 않았고 값을 만들지 않았습니다.\n{note}"
+            )
+        elif status == "error":
+            lines.append(
+                f"- {ticker}: 데이터를 불러오지 못했습니다. "
+                f"{bond.get('note') or '이 회사의 스프레드는 현재 이용할 수 없습니다.'}"
+            )
+        else:
+            lines.append(f"- {ticker}: 스프레드 데이터를 현재 이용할 수 없습니다.")
+
+    errors = [str(item) for item in (panel.get("errors") or []) if item]
+    if errors:
+        lines.append("조회 중 확인된 오류: " + "; ".join(errors))
+    if panel.get("chart_start") and panel.get("chart_end"):
+        lines.append(f"요청 구간: {panel['chart_start']} – {panel['chart_end']}.")
+    return "\n".join(lines)
+
+
+def mag7_ai_context(start_date: str) -> str:
+    """차트와 같은 캐시로 MAG7 스프레드 문맥을 만든다. 실패해도 예외를 올리지 않는다."""
+    try:
+        chart_start, chart_end = chart_window(start_date)
+        panel = cached_mag7_panel(chart_start, chart_end)
+    except Exception as exc:
+        return (
+            "MAG7 회사채 − 미국 10년물 스프레드 데이터는 현재 이용할 수 없습니다. "
+            "FINRA TRACE에서 회사채 수익률을 가져오지 못했습니다. "
+            f"({exc.__class__.__name__}: {exc})"
+        )
+    treasury = None
+    treasury_error = None
+    try:
+        treasury = cached_dgs10(chart_start)
+    except Exception as exc:
+        treasury_error = f"{exc.__class__.__name__}: {exc}"
+    try:
+        return build_mag7_ai_context(panel, treasury, treasury_error)
+    except Exception as exc:
+        return (
+            "MAG7 회사채 − 미국 10년물 스프레드 데이터는 현재 이용할 수 없습니다. "
+            f"스프레드를 정리하지 못했습니다. ({exc.__class__.__name__}: {exc})"
+        )
+
+
 def render_mag7_credit_spreads(start_date: str, dgs10: pd.Series | None = None) -> None:
     """Macro 페이지에 MAG7 신용 스프레드 섹션을 그린다. 실패해도 예외를 올리지 않는다."""
     st.markdown("### 📉 MAG7 회사채 − 미국 10년물 스프레드")

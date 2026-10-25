@@ -581,7 +581,32 @@ def generate_comprehensive_analysis(df, risk_info, depth="기본"):
             return "⚠️ API 할당량 초과. 잠시 후 다시 시도하세요."
         return f"⚠️ AI 분석 생성 중 오류: {str(e)}"
 
-def generate_comprehensive_analysis_deep_dive(df, risk_info):
+_MAG7_SPREAD_INDICATOR = "MAG7 회사채 − 미국 10년물 스프레드"
+
+
+def _macro_start_date(df, start_date=None):
+    """사이드바 시작일과 같게 맞추고, 없으면 로드된 시계열의 첫 날을 쓴다."""
+    if start_date:
+        return str(start_date)[:10]
+    try:
+        return pd.Timestamp(df.index.min()).strftime("%Y-%m-%d")
+    except Exception:
+        return (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+
+
+def _mag7_spread_context(df, start_date=None) -> str:
+    """차트와 같은 TRACE·DGS10 캐시로 문맥을 만든다. 실패하면 이용 불가 문장만 돌려준다."""
+    try:
+        from mag7_bond_spread import mag7_ai_context
+        return mag7_ai_context(_macro_start_date(df, start_date))
+    except Exception as exc:
+        return (
+            "MAG7 회사채 − 미국 10년물 스프레드 데이터는 현재 이용할 수 없습니다. "
+            f"({exc.__class__.__name__}: {exc})"
+        )
+
+
+def generate_comprehensive_analysis_deep_dive(df, risk_info, start_date=None):
     """종합 AI 분석 - 딥다이브 모드"""
     if not GEMINI_AVAILABLE:
         return "⚠️ Gemini API가 설정되지 않았습니다."
@@ -609,6 +634,8 @@ def generate_comprehensive_analysis_deep_dive(df, risk_info):
     if 'CRE_DELINQ_ALL' in df.columns and len(df['CRE_DELINQ_ALL'].dropna()) > 0:
         cre_val = df['CRE_DELINQ_ALL'].dropna().iloc[-1]
         delinq_data += f"- CRE 연체율: {cre_val:.2f}%\n"
+
+    mag7_spread_context = _mag7_spread_context(df, start_date)
     
     prompt = f"""
 당신은 20년 경력의 거시경제, 신용 리스크, 금융시장 전문가입니다. **매우 상세하고 심층적인 종합 분석**을 제공해주세요.
@@ -629,6 +656,9 @@ def generate_comprehensive_analysis_deep_dive(df, risk_info):
 ### 신용 시장:
 - 하이일드 스프레드: {latest['HY_SPREAD']:.2f}% (30일 변화: {hy_30d_change:+.2f}%)
 - 투자등급 스프레드: {latest['IG_SPREAD']:.2f}%
+
+### MAG7 회사채 − 미국 10년물 스프레드:
+{mag7_spread_context}
 
 ### 연체율 현황:
 {delinq_data if delinq_data else "데이터 없음"}
@@ -748,8 +778,77 @@ def generate_comprehensive_analysis_deep_dive(df, risk_info):
             return "⚠️ API 할당량 초과. 잠시 후 다시 시도하세요."
         return f"⚠️ AI Deep Dive 분석 생성 중 오류: {str(e)}"
 
-def generate_indicator_analysis(df, indicator_name, depth="기본"):
+def _generate_mag7_spread_analysis(df, depth="기본", start_date=None):
+    """MAG7 스프레드만 기존 분석 항목·모델 설정으로 요청한다."""
+    context = _mag7_spread_context(df, start_date)
+    if not GEMINI_AVAILABLE:
+        return (
+            "⚠️ Gemini API가 설정되지 않았습니다.\n\n"
+            "### 지표 분석에 전달할 데이터\n\n"
+            f"{context}"
+        )
+
+    prompt = f"""
+{_MAG7_SPREAD_INDICATOR} 지표를 깊이 분석해주세요. 한국어로 답변하세요.
+
+## 지표 정보:
+{context}
+
+변화는 스프레드 수준(bp)의 차이이며, 퍼센트 변화율이 아닙니다.
+데이터가 이용 불가이거나 없는 회사의 수치는 만들지 말고, 그 사실을 설명하세요.
+
+## 분석 깊이: {depth}
+- '요약': 각 항목 1-2문장
+- '기본': 각 항목 2-3문장
+- '딥다이브': 상세 분석 + bullet points
+
+## 분석 항목:
+1. 현재 수준 평가 및 의미
+2. 최근 추세 분석 (7일/30일 기준)
+3. 경고/위험 레벨 판단
+4. 과거 유사 상황과 비교
+5. 투자자 관점의 리스크와 기회
+6. 주시해야 할 트리거 레벨
+
+위 모드에 맞춰 답변하세요.
+"""
+
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        tokens = 65536 if depth == "딥다이브" else 2048
+
+        safety_settings = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+        ]
+
+        response = model.generate_content(
+            prompt,
+            generation_config={
+                'max_output_tokens': tokens,
+                'temperature': 0.7
+            },
+            safety_settings=safety_settings
+        )
+
+        if not response.candidates or not response.candidates[0].content.parts:
+            return "⚠️ AI 응답이 안전 필터에 의해 차단되었습니다. 다시 시도하세요."
+
+        return response.text
+
+    except Exception as e:
+        error_msg = str(e)
+        if "quota" in error_msg.lower() or "429" in error_msg:
+            return "⚠️ API 할당량 초과. 잠시 후 다시 시도하세요."
+        return f"⚠️ 분석 생성 중 오류: {str(e)}"
+
+
+def generate_indicator_analysis(df, indicator_name, depth="기본", start_date=None):
     """개별 지표 AI 분석 - 전체 지표 포함"""
+    if indicator_name == _MAG7_SPREAD_INDICATOR:
+        return _generate_mag7_spread_analysis(df, depth, start_date)
     if not GEMINI_AVAILABLE:
         return "⚠️ Gemini API가 설정되지 않았습니다."
     
@@ -1177,7 +1276,7 @@ def main():
         if _macro_force:
             with st.spinner("🧠 Gemini 딥다이브 분석 중..."):
                 try:
-                    _result = generate_comprehensive_analysis_deep_dive(df, risk)
+                    _result = generate_comprehensive_analysis_deep_dive(df, risk, start_date)
                     st.session_state["macro_ai_result"] = {
                         "text": _result,
                         "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -1277,7 +1376,7 @@ def main():
             elif _tab_force:
                 with st.spinner("🧠 Gemini 딥다이브 분석 중..."):
                     try:
-                        _result = generate_comprehensive_analysis_deep_dive(df, risk)
+                        _result = generate_comprehensive_analysis_deep_dive(df, risk, start_date)
                         st.session_state["macro_ai_result"] = {
                             "text": _result,
                             "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -1312,7 +1411,7 @@ def main():
                 elif indicator_category == "스프레드":
                     indicator = st.selectbox(
                         "세부 지표",
-                        ["금리괴리", "정책스프레드", "하이일드스프레드", "투자등급스프레드"]
+                        ["금리괴리", "정책스프레드", "하이일드스프레드", "투자등급스프레드", _MAG7_SPREAD_INDICATOR]
                     )
                 elif indicator_category == "연체율":
                     indicator = st.selectbox(
@@ -1330,7 +1429,7 @@ def main():
             if st.button("🔍 지표 분석 실행", type="primary", key="indicator_analysis_btn"):
                 with st.spinner(f"🧠 {indicator} 분석 중..."):
                     try:
-                        analysis = generate_indicator_analysis(df, indicator, depth)
+                        analysis = generate_indicator_analysis(df, indicator, depth, start_date)
                         st.session_state['indicator'] = analysis
                         st.session_state['indicator_name'] = indicator
                     except Exception as e:
