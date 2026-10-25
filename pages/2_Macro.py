@@ -1213,7 +1213,18 @@ def main():
     except Exception as e:
         st.error(f"차트 생성 오류: {str(e)}")
         st.exception(e)
-    
+
+    # MAG7 개별 회사채 스프레드. TRACE가 실패해도 이 화면의 나머지 지표는 유지한다.
+    st.markdown("---")
+    try:
+        from mag7_bond_spread import render_mag7_credit_spreads
+        render_mag7_credit_spreads(start_date)
+    except Exception as exc:
+        st.warning(
+            "MAG7 회사채 스프레드를 표시하지 못했습니다. "
+            f"다른 매크로 지표는 그대로 사용할 수 있습니다. ({exc})"
+        )
+
     # 탭
     st.markdown("---")
     tab1, tab2, tab3 = st.tabs(["📊 시나리오 분석", "🤖 AI 분석 & 챗봇", "📖 해석 가이드"])
