@@ -10,6 +10,7 @@ LIGHT_COLORS = {
     "#edc879": "#805b15", "#d8ad55": "#946b19", "#131d2a": "#f0f4fa",
     "#12332d": "#e2f3eb", "#392027": "#fbe8e9", "#352c1b": "#fff2d4",
     "#e3b341": "#805b15", "#a5d6ff": "#155fa0",
+    "#ff8a80": "#b94338",
 }
 
 
@@ -49,7 +50,6 @@ def dashboard_plotly_chart(figure, **kwargs):
     }
     kwargs["theme"] = None
     chart = st.plotly_chart(figure, **kwargs)
-    st.caption("축 늘리기·줄이기: 축 양 끝의 숫자 근처를 클릭한 채 드래그하세요. 가로축은 좌우, 세로축은 위아래로 움직입니다. 축 가운데는 범위 이동 · 그래프 더블클릭은 원래 범위로 복원")
     return chart
 
 
@@ -62,7 +62,7 @@ def apply_dashboard_style():
 <style>
     .stApp { background: #090e15; color: #e6edf5; }
     [data-testid="stHeader"] { background: #090e15; }
-    .block-container { max-width: 1600px; padding-top: 2rem; padding-bottom: 3rem; }
+    .block-container { max-width: 1600px; padding-top: 4.5rem; padding-bottom: 3rem; }
     section[data-testid="stSidebar"] { background: #0e151f; border-right: 1px solid #263140; }
     h1, h2, h3, h4 { color: #e6edf5 !important; letter-spacing: -.025em; }
     h1 { font-size: 1.8rem !important; }
@@ -80,7 +80,8 @@ def apply_dashboard_style():
     button[data-baseweb="tab"][aria-selected="true"] { color: #edc879; }
     .desk-header { display: flex; justify-content: space-between; align-items: center;
         gap: 20px; padding: 4px 0 22px; border-bottom: 1px solid #263140; margin-bottom: 24px; }
-    .desk-brand { color: #edc879; font-size: .75rem; letter-spacing: .18em; font-weight: 700; }
+    .desk-brand { color: #ff8a80; font-size: .75rem; line-height: 1.6;
+        padding-top: 2px; letter-spacing: .18em; font-weight: 700; }
     .desk-title { color: #f0f4fa; font-size: 1.7rem; font-weight: 700; margin: 8px 0; }
     .desk-sub { color: #a7b4c6; font-size: .85rem; line-height: 1.6; }
     .desk-badge { color: #b7c6db; border: 1px solid #334156; padding: 8px 14px;

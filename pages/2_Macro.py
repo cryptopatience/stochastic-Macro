@@ -1,19 +1,20 @@
 import streamlit as st
+from dashboard_auth import require_login
 from dashboard_ui import apply_dashboard_style, dashboard_header, dashboard_card, theme_text, dashboard_plotly_chart
+import warnings
+
+warnings.filterwarnings('ignore')
+
+# ── 인증 체크 ─────────────────────────────────────────────────────────────────
+apply_dashboard_style()
+require_login()
+
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from fredapi import Fred
 from datetime import datetime, timedelta
-import warnings
-
-warnings.filterwarnings('ignore')
-
-# ── 인증 체크 ─────────────────────────────────────────────────────────────────
-if not st.session_state.get("authenticated"):
-    st.error("🔒 접근 권한이 없습니다. 메인 페이지에서 로그인하세요.")
-    st.stop()
 
 # ── AI 결과 디스크 캐시 헬퍼 ──────────────────────────────────────────────────
 import json as _json, os as _os_cache
@@ -42,10 +43,6 @@ if "macro_ai_result" not in st.session_state:
     _cached = _ai_cache_load("macro_ai_result")
     if _cached:
         st.session_state["macro_ai_result"] = _cached
-
-# 흰색 배경 테마
-apply_dashboard_style()
-
 
 # 페이지 제목과 부제목 추가
 st.title("🏦 매크로 credit risk (과거 경제반영 후행지표)")

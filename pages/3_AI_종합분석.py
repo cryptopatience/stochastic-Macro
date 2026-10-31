@@ -8,12 +8,12 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import streamlit as st
+from dashboard_auth import require_login
 from dashboard_ui import apply_dashboard_style, dashboard_header, dashboard_card, theme_text, dashboard_plotly_chart
 
 # ── 인증 체크 ─────────────────────────────────────────────────────────────────
-if not st.session_state.get("authenticated"):
-    st.error("🔒 접근 권한이 없습니다. 메인 페이지에서 로그인하세요.")
-    st.stop()
+apply_dashboard_style()
+require_login()
 
 # ── AI 결과 디스크 캐시 헬퍼 ──────────────────────────────────────────────────
 import json as _json, os as _os_cache
@@ -52,12 +52,6 @@ from datetime import datetime, timedelta
 import google.generativeai as genai
 import requests
 import os as _os
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 라이트 테마
-# ─────────────────────────────────────────────────────────────────────────────
-apply_dashboard_style()
-
 
 st.markdown("# 🤖 AI 통합 딥다이브 분석")
 st.markdown("**SSO 기술적 분석 + 매크로·신용위험 분석**을 통합해 Gemini AI가 최종 투자 판단을 제공합니다.")
